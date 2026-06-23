@@ -1,0 +1,95 @@
+# Copy this code to your functions.php or use a pluging like code snippet to insert it.
+
+add_action('rest_api_init', function () {
+
+	register_rest_route(
+		'chatwoot/v2',
+		'/orders/(?P<user_id>\d+)',
+		[
+			'methods' => 'GET',
+			'permission_callback' => '__return_true',
+
+			'callback' => function ($request) {
+
+				$user_id = absint($request['user_id']);
+
+				$orders = wc_get_orders([
+					'customer_id' => $user_id,
+					'limit'       => -1,
+					'orderby'     => 'date',
+					'order'       => 'DESC',
+				]);
+
+				$data = [];
+
+				foreach ($orders as $order) {
+
+					$order_id = $order->get_id();
+
+					$items = [];
+
+					foreach ($order->get_items() as $item) {
+
+						$meta = [];
+
+						foreach ($item->get_meta_data() as $meta_item) {
+
+							$key = $meta_item->key;
+							$value = $meta_item->value;
+
+							// Ignorar metadatos internos de WooCommerce
+							if (strpos($key, '_') === 0) {
+								continue;
+							}
+
+							if (is_array($value)) {
+								$value = implode(', ', $value);
+							}
+
+							$meta[] = [
+								'label' => wc_attribute_label($key),
+								'value' => (string) $value,
+							];
+						}
+
+						$items[] = [
+							'name'  => $item->get_name(),
+							'qty'   => (int) $item->get_quantity(),
+							'total' => strip_tags(
+								wc_price(
+									$item->get_total() + $item->get_total_tax(),
+									[
+										'currency' => $order->get_currency()
+									]
+								)
+							),
+							'meta' => $meta,
+						];
+					}
+
+					$data[] = [
+						'id'       => $order_id,
+						'date'     => $order->get_date_created()
+							? $order->get_date_created()->date('d/m/Y')
+							: '',
+						'status'   => wc_get_order_status_name(
+							$order->get_status()
+						),
+						'total'    => strip_tags(
+							$order->get_formatted_order_total()
+						),
+						'edit_url' => sprintf(
+							'%s/wp-admin/post.php?post=%d&action=edit',
+							untrailingslashit(home_url()),
+							$order_id
+						),
+						'items'    => $items,
+					];
+				}
+
+				return rest_ensure_response($data);
+			}
+		]
+	);
+
+});
