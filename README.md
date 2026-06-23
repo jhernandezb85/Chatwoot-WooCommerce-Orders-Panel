@@ -35,3 +35,7 @@ WooCommerce
 A custom contact attribute in Chatwoot named: wp_user_id
 
 This attribute must contain the corresponding WordPress user ID.
+
+In Chatwoot, go to Settings -> Integrations -> Dashboard Apps -> Settings and add a new Dashboard App
+Name: Orders
+Endpoint: https://yourdomain.com/your-newly-created-page-url
