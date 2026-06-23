@@ -1,0 +1,279 @@
+# Insert this code as a [shortcode] in a new page inside your wordpress
+
+<style>
+	#cw-orders {
+		font-family: inherit;
+		font-size: 14px;
+		color: #1f2937;
+		background: transparent;
+	}
+
+	#cw-orders details {
+		background: #ffffff;
+		border: 1px solid #d9d9d9;
+		border-radius: 12px;
+		margin-bottom: 14px;
+		padding: 14px;
+		overflow: hidden;
+		box-shadow: 0 1px 3px rgba(0,0,0,.05);
+		transition: all .2s ease;
+	}
+
+	#cw-orders details:hover {
+		border-color: #bfc5cc;
+	}
+
+	#cw-orders summary {
+		list-style: none;
+		cursor: pointer;
+	}
+
+	#cw-orders summary::-webkit-details-marker {
+		display: none;
+	}
+
+	#cw-orders summary::before {
+		content: "▶";
+		margin-right: 8px;
+		font-size: 11px;
+		color: #6b7280;
+	}
+
+	#cw-orders details[open] summary::before {
+		content: "▼";
+	}
+
+	.cw-header {
+		padding: 4px 0 10px;
+	}
+
+	#cw-orders details[open] .cw-header {
+		border-bottom: 1px solid #e5e7eb;
+		margin-bottom: 14px;
+		padding-bottom: 12px;
+	}
+
+	.cw-divider {
+		border-bottom: 1px solid #ececec;
+	}
+
+	.cw-item {
+		padding: 10px 0;
+	}
+
+	.cw-item:last-child {
+		border-bottom: none;
+	}
+
+	.cw-meta {
+		font-size: 12px;
+		color: #6b7280;
+		margin-top: 4px;
+		padding-left: 14px;
+		line-height: 1.5;
+	}
+
+	#cw-orders a {
+		color: #2563eb;
+		text-decoration: none;
+	}
+
+	#cw-orders a:hover {
+		text-decoration: underline;
+	}
+</style>
+
+<div id="cw-orders">
+	Cargando pedidos...
+</div>
+
+<script>
+(async function () {
+
+	const container = document.getElementById('cw-orders');
+
+	container.innerHTML = 'Esperando datos de Chatwoot...';
+
+	window.parent.postMessage(
+		'chatwoot-dashboard-app:fetch-info',
+		'*'
+	);
+
+	window.addEventListener('message', async function (event) {
+
+		let payload = event.data;
+
+		if (typeof payload === 'string') {
+			try {
+				payload = JSON.parse(payload);
+			} catch (e) {
+				return;
+			}
+		}
+
+		const wpUserId =
+			payload?.data?.contact?.custom_attributes?.wp_user_id;
+
+		if (!wpUserId) {
+			container.innerHTML =
+				'Este contacto no tiene usuario de WooCommerce.';
+			return;
+		}
+
+		container.innerHTML = 'Cargando pedidos...';
+
+		const response = await fetch(
+			'/wp-json/chatwoot/v2/orders/' + wpUserId
+		);
+
+		const orders = await response.json();
+
+		if (!orders.length) {
+			container.innerHTML =
+				'Este cliente no tiene pedidos.';
+			return;
+		}
+
+		let html = '';
+
+		orders.forEach(order => {
+
+			let itemsHtml = '';
+
+			order.items.forEach(item => {
+
+				let metaHtml = '';
+
+				if (item.meta && item.meta.length) {
+
+					item.meta.forEach(meta => {
+
+						metaHtml += `
+							<div class="cw-meta">
+								<strong>${meta.label}:</strong>
+								${meta.value}
+							</div>
+						`;
+
+					});
+
+				}
+
+				itemsHtml += `
+					<div class="cw-divider cw-item">
+
+						<div style="
+							display:flex;
+							justify-content:space-between;
+							align-items:flex-start;
+							gap:12px;
+						">
+
+							<div style="flex:1;">
+
+								<div>
+									${item.qty} × ${item.name}
+								</div>
+
+								${metaHtml}
+
+							</div>
+
+							<div style="
+								white-space:nowrap;
+								font-weight:600;
+							">
+								${item.total}
+							</div>
+
+						</div>
+
+					</div>
+				`;
+
+			});
+
+			html += `
+				<details>
+
+					<summary class="cw-header">
+
+						<div style="
+							display:flex;
+							justify-content:space-between;
+							align-items:flex-start;
+							gap:12px;
+						">
+
+							<div style="flex:1;">
+
+								<div style="
+									font-weight:600;
+									font-size:15px;
+								">
+									Pedido #${order.id}
+								</div>
+
+								<div style="
+									font-size:12px;
+									color:#6b7280;
+									margin-top:4px;
+								">
+									${order.date}
+									•
+									${order.status}
+									•
+									${order.total}
+								</div>
+
+							</div>
+
+							<a
+								href="${order.edit_url}"
+								target="_blank"
+								rel="noopener"
+								onclick="event.stopPropagation();"
+								style="
+									font-size:12px;
+									white-space:nowrap;
+								"
+							>
+								Editar
+							</a>
+
+						</div>
+
+					</summary>
+
+					<div>
+
+						${itemsHtml}
+
+						<div style="
+							margin-top:16px;
+							text-align:right;
+						">
+
+							<a
+								href="${order.edit_url}"
+								target="_blank"
+								rel="noopener"
+							>
+								Editar pedido
+							</a>
+
+						</div>
+
+					</div>
+
+				</details>
+			`;
+
+		});
+
+		container.innerHTML = html;
+
+	});
+
+})();
+</script>
